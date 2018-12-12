@@ -46,6 +46,17 @@ function setRelease() {
 	fi
 }
 
+function setDockerTag() {
+	if [ -n "$1" ] ; then
+		# sed -i "s/^tag=.*/tag=$1/g" .docker-image-tag
+
+		sed -i 's|^tag=.*|tag='$1'|g' make/.docker-image-tag
+	else
+		echo "ERROR: missing docker image tag " >&2
+		return 1
+	fi
+}
+
 function runPreTagCommand() {
 	if [ -n "$1" ] ; then
 		COMMAND=$(sed -n -e "s/@@RELEASE@@/$1/g" -e 's/^pre_tag_command=\(.*\)/\1/p' .release)
@@ -71,9 +82,9 @@ function differsFromRelease() {
 function getVersion() {
 	result=$(getRelease)
 
-	if differsFromRelease; then
-		result="$result-$(git log -n 1 --format=%h .)"
-	fi
+	# if differsFromRelease; then
+	# 	result="$result-$(git log -n 1 --format=%h .)"
+	# fi
 
 	if hasChanges ; then
 		result="$result-dirty"
@@ -81,25 +92,44 @@ function getVersion() {
 	echo $result
 }
 
+function getProdVersion() {
+	result=$(getRelease | rev | cut -f 2- -d- | rev)
+	# result=$(getRelease)
+
+	# if differsFromRelease; then
+	# 	result="$result-$(git log -n 1 --format=%h .)"
+	# fi
+
+	# if hasChanges ; then
+	# 	result="$result-dirty"
+	# fi
+
+	echo $result>&2
+	echo $result
+}
+
 function nextPatchLevel() {
 	version=${1:-$(getRelease)}
 	major_and_minor=$(echo $version | cut -d. -f1,2)
-	patch=$(echo $version | cut -d. -f3)
-	version=$(printf "%s.%d" $major_and_minor $(($patch + 1)))
+	patch=$(echo $version | cut -d. -f3 | cut -d- -f1)
+	hash=$(git log -n 1 --format=%h .)
+	version=$(printf "%s.%s-%s" $major_and_minor $(($patch + 1)) $hash)
 	echo $version
 }
 
 function nextMinorLevel() {
 	version=${1:-$(getRelease)}
-	major=$(echo $version | cut -d. -f1);
-	minor=$(echo $version | cut -d. -f2);
-	version=$(printf "%d.%d.0" $major $(($minor + 1))) ;
+	major=$(echo $version | cut -d. -f1)
+	minor=$(echo $version | cut -d. -f2)
+	hash=$(git log -n 1 --format=%h .)
+	version=$(printf "%d.%d.0-%s" $major $(($minor + 1)) $hash)
 	echo $version
 }
 
 function nextMajorLevel() {
 	version=${1:-$(getRelease)}
-	major=$(echo $version | cut -d. -f1);
-	version=$(printf "%d.0.0" $(($major + 1)))
+	major=$(echo $version | cut -d. -f1)
+	hash=$(git log -n 1 --format=%h .)
+	version=$(printf "%d.0.0-%s" $(($major + 1)) $hash)
 	echo $version
 }
